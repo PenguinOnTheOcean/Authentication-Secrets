@@ -31,7 +31,8 @@ mongoose.connect("mongodb://localhost:27017/userDB");
 const userSchema = new mongoose.Schema({
     email: String,
     password: String,
-    googleId: String
+    googleId: String,
+    secret: Array
 });
 userSchema.plugin(passportLocalMongoose);
 userSchema.plugin(findOrCreate);
@@ -76,11 +77,13 @@ app.get('/auth/google/secrets',
     });
 
 app.get("/secrets", function (req, res) {
-    if (req.isAuthenticated()) {
-        res.render("secrets");
-    } else {
-        res.redirect("/login");
-    }
+    User.find({secret: {$ne: null}}, function(err, foundUsers){
+        if (err){
+            console.log(err);
+        } else if (foundUsers){
+            res.render("secrets", {userWithSecret: foundUsers});
+        }
+    });
 });
 
 app.get("/logout", function (req, res) {
@@ -130,6 +133,29 @@ app.route("/register")
         });
     });
 
+app.route("/submit")
+    .get(function(req, res){
+        if (req.isAuthenticated()) {
+            res.render("submit");
+        } else {
+            res.redirect("/login");
+        }
+    })
+    .post(function(req, res){
+        const newSecret = req.body.secret;
+        
+        User.findById(req.user._id.toString(), function(err, foundUser){
+            if (err) {
+                console.log(err);
+            } else if (foundUser){
+                foundUser.updateOne({$push: {secret: newSecret}}, function(err){
+                    if (!err){
+                        res.redirect("/secrets");
+                    }
+                });
+            }
+        });
+    });
 
 app.listen(3000, function () {
     console.log("Server is running on port 3000.");
